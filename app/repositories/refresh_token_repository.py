@@ -29,7 +29,11 @@ def get_refresh_token_by_jti(db: Session, jti: str) -> RefreshToken | None:
     return db.scalars(select(RefreshToken).where(RefreshToken.jti == jti)).one_or_none()
 
 
-def delete_refresh_token(db: Session, refresh_token_id: int) -> int:
-    """삭제한 행 수를 반환한다. 동시 요청으로 이미 삭제됐으면 0이다."""
-    result = db.execute(delete(RefreshToken).where(RefreshToken.id == refresh_token_id))
+def delete_refresh_token(db: Session, jti: str) -> int:
+    """삭제한 행 수를 반환한다. 동시 요청으로 이미 삭제됐으면 0이다.
+
+    id로 지우면 SQLite가 지운 id를 새 행에 다시 줄 수 있어, 다른 요청이 새로 넣은 행을
+    지울 수 있다. 발급마다 새로 만드는 jti로 지운다.
+    """
+    result = db.execute(delete(RefreshToken).where(RefreshToken.jti == jti))
     return result.rowcount

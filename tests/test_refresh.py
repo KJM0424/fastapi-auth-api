@@ -1,3 +1,4 @@
+import threading
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -126,16 +127,38 @@ def test_refresh_rejects_missing_field(client: TestClient) -> None:
 
 
 def test_concurrent_refresh_issues_only_once(
-    client: TestClient, refresh_token: str, monkeypatch: pytest.MonkeyPatch
+    refresh_token: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # 다른 요청이 같은 토큰으로 먼저 교체해 삭제할 행이 없는 상황을 흉내 낸다
-    monkeypatch.setattr(auth_service, "delete_refresh_token", lambda db, refresh_token_id: 0)
+    """같은 토큰으로 두 요청이 동시에 들어오면 하나만 새 토큰을 받는다 (ADR 0006)."""
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        # 두 요청이 모두 DB 행을 조회한 뒤에 삭제하도록 맞춘다
+        barrier = threading.Barrier(2)
+        original_get = auth_service.get_refresh_token_by_jti
 
-    response = _refresh(client, refresh_token)
+        def get_then_wait(db: Session, jti: str) -> RefreshToken | None:
+            stored = original_get(db, jti)
+            barrier.wait(timeout=5)
+            return stored
 
-    assert response.status_code == 401
-    assert response.json() == INVALID_TOKEN
-    assert _stored_jtis() == {_jti(refresh_token)}
+        monkeypatch.setattr(auth_service, "get_refresh_token_by_jti", get_then_wait)
+
+        responses: list[httpx.Response] = []
+
+        def send() -> None:
+            responses.append(_refresh(client, refresh_token))
+
+        threads = [threading.Thread(target=send) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    statuses = sorted(response.status_code for response in responses)
+    assert statuses == [200, 401]
+    succeeded = next(response for response in responses if response.status_code == 200)
+    failed = next(response for response in responses if response.status_code == 401)
+    assert failed.json() == INVALID_TOKEN
+    assert _stored_jtis() == {_jti(succeeded.json()["refresh_token"])}
 
 
 def test_rotation_rolls_back_delete_when_saving_new_token_fails(
@@ -150,8 +173,8 @@ def test_rotation_rolls_back_delete_when_saving_new_token_fails(
         deleted_counts: list[int] = []
         original_delete = auth_service.delete_refresh_token
 
-        def spy_delete(db: Session, refresh_token_id: int) -> int:
-            count = original_delete(db, refresh_token_id)
+        def spy_delete(db: Session, jti: str) -> int:
+            count = original_delete(db, jti)
             deleted_counts.append(count)
             return count
 

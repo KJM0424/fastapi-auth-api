@@ -87,7 +87,7 @@ def refresh(db: Session, refresh_token: str) -> TokenPair:
 
     # 기존 토큰 삭제와 새 토큰 저장을 한 트랜잭션으로 묶는다 (ADR 0006)
     try:
-        if delete_refresh_token(db, stored.id) != 1:
+        if delete_refresh_token(db, stored.jti) != 1:
             # 같은 토큰으로 들어온 다른 요청이 먼저 교체한 경우
             raise invalid_token_error()
         tokens = _issue_tokens(db, payload.user_id)
@@ -104,7 +104,7 @@ def logout(db: Session, refresh_token: str) -> None:
     stored = get_refresh_token_by_jti(db, payload.jti)
     if stored is None or not hmac.compare_digest(stored.token_hash, hash_token(refresh_token)):
         return
-    delete_refresh_token(db, stored.id)
+    delete_refresh_token(db, stored.jti)
     db.commit()
 
 
