@@ -15,6 +15,7 @@ def test_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ACCESS_TOKEN_EXPIRE_MINUTES", raising=False)
     monkeypatch.delenv("REFRESH_TOKEN_EXPIRE_DAYS", raising=False)
+    monkeypatch.setenv("BCRYPT_ROUNDS", "4")
     monkeypatch.setenv("SECRET_KEY", TEST_SECRET_KEY)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     _clear_caches()
