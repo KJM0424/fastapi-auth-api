@@ -1,3 +1,4 @@
+import hmac
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,15 +10,24 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.security import (
     MAX_PASSWORD_BYTES,
+    REFRESH_TOKEN_TYPE,
+    InvalidTokenError,
+    TokenExpiredError,
+    TokenPayload,
     create_access_token,
     create_refresh_token,
+    decode_token,
     hash_password,
     hash_token,
     verify_dummy_password,
     verify_password,
 )
 from app.models import User
-from app.repositories.refresh_token_repository import add_refresh_token
+from app.repositories.refresh_token_repository import (
+    add_refresh_token,
+    delete_refresh_token,
+    get_refresh_token_by_jti,
+)
 from app.repositories.user_repository import add_user, get_user_by_email
 
 MIN_PASSWORD_LENGTH = 8
@@ -66,6 +76,36 @@ def login(db: Session, email: str, password: str) -> TokenPair:
     return tokens
 
 
+def refresh(db: Session, refresh_token: str) -> TokenPair:
+    payload = _decode(refresh_token, REFRESH_TOKEN_TYPE)
+    stored = get_refresh_token_by_jti(db, payload.jti)
+    if stored is None or stored.user_id != payload.user_id:
+        raise _invalid_token()
+    if not hmac.compare_digest(stored.token_hash, hash_token(refresh_token)):
+        raise _invalid_token()
+
+    # 기존 토큰 삭제와 새 토큰 저장을 한 트랜잭션으로 묶는다 (ADR 0006)
+    try:
+        if delete_refresh_token(db, stored.id) != 1:
+            # 같은 토큰으로 들어온 다른 요청이 먼저 교체한 경우
+            raise _invalid_token()
+        tokens = _issue_tokens(db, payload.user_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return tokens
+
+
+def _decode(token: str, expected_type: str) -> TokenPayload:
+    try:
+        return decode_token(token, expected_type)
+    except TokenExpiredError as exc:
+        raise _token_expired() from exc
+    except InvalidTokenError as exc:
+        raise _invalid_token() from exc
+
+
 def _issue_tokens(db: Session, user_id: int) -> TokenPair:
     """새 리프레시 토큰을 세션에 추가만 한다. commit은 호출하는 쪽에서 한다."""
     now = _now()
@@ -112,3 +152,11 @@ def _invalid_credentials() -> AppError:
         "INVALID_CREDENTIALS",
         "이메일 또는 비밀번호가 올바르지 않습니다",
     )
+
+
+def _invalid_token() -> AppError:
+    return AppError(status.HTTP_401_UNAUTHORIZED, "INVALID_TOKEN", "유효하지 않은 토큰입니다")
+
+
+def _token_expired() -> AppError:
+    return AppError(status.HTTP_401_UNAUTHORIZED, "TOKEN_EXPIRED", "만료된 토큰입니다")
