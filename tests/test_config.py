@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from tests.conftest import TEST_SECRET_KEY
 
 
@@ -70,3 +70,7 @@ def test_settings_reject_non_positive_expiry(
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_get_settings_ignores_project_env_file() -> None:
+    assert get_settings().access_token_expire_minutes == 30
