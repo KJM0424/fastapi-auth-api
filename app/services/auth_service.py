@@ -1,0 +1,108 @@
+import re
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from fastapi import status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.core.errors import AppError
+from app.core.security import (
+    MAX_PASSWORD_BYTES,
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_token,
+    verify_dummy_password,
+    verify_password,
+)
+from app.models import User
+from app.repositories.refresh_token_repository import add_refresh_token
+from app.repositories.user_repository import add_user, get_user_by_email
+
+MIN_PASSWORD_LENGTH = 8
+ASCII_LETTER = re.compile(r"[A-Za-z]")
+DIGIT = re.compile(r"[0-9]")
+
+
+@dataclass(frozen=True)
+class TokenPair:
+    access_token: str
+    refresh_token: str
+
+
+def signup(db: Session, email: str, password: str) -> User:
+    if not _is_valid_password(password):
+        raise AppError(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "INVALID_PASSWORD",
+            "비밀번호는 8자 이상, 72바이트 이하이며 영문과 숫자를 포함해야 합니다",
+        )
+
+    normalized_email = email.lower()
+    if get_user_by_email(db, normalized_email) is not None:
+        raise _email_already_exists()
+
+    user = add_user(db, normalized_email, hash_password(password), _now())
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # 동시 가입으로 unique 제약에 걸린 경우
+        db.rollback()
+        raise _email_already_exists() from exc
+    return user
+
+
+def login(db: Session, email: str, password: str) -> TokenPair:
+    user = get_user_by_email(db, email.lower())
+    if user is None:
+        verify_dummy_password(password)
+        raise _invalid_credentials()
+    if not verify_password(password, user.password_hash):
+        raise _invalid_credentials()
+
+    now = _now()
+    refresh_token = create_refresh_token(user.id, now)
+    add_refresh_token(
+        db,
+        user_id=user.id,
+        jti=refresh_token.jti,
+        token_hash=hash_token(refresh_token.token),
+        expires_at=refresh_token.expires_at,
+        created_at=now,
+    )
+    db.commit()
+    return TokenPair(
+        access_token=create_access_token(user.id, now),
+        refresh_token=refresh_token.token,
+    )
+
+
+def _is_valid_password(password: str) -> bool:
+    try:
+        password_bytes = password.encode()
+    except UnicodeEncodeError:
+        # 짝이 없는 서로게이트 문자처럼 UTF-8로 인코딩할 수 없는 입력 (ADR 0008)
+        return False
+    return (
+        len(password) >= MIN_PASSWORD_LENGTH
+        and len(password_bytes) <= MAX_PASSWORD_BYTES
+        and ASCII_LETTER.search(password) is not None
+        and DIGIT.search(password) is not None
+    )
+
+
+def _now() -> datetime:
+    return datetime.now(UTC).replace(microsecond=0)
+
+
+def _email_already_exists() -> AppError:
+    return AppError(status.HTTP_409_CONFLICT, "EMAIL_ALREADY_EXISTS", "이미 가입된 이메일입니다")
+
+
+def _invalid_credentials() -> AppError:
+    return AppError(
+        status.HTTP_401_UNAUTHORIZED,
+        "INVALID_CREDENTIALS",
+        "이메일 또는 비밀번호가 올바르지 않습니다",
+    )

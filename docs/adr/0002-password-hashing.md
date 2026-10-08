@@ -12,10 +12,12 @@ PRD에 따라 비밀번호를 평문으로 저장하지 않는다. 해싱 알고
 
 ## 결정
 bcrypt 라이브러리를 직접 쓴다. passlib은 쓰지 않는다.
+cost(반복 강도)는 기본값 12로 두고, `BCRYPT_ROUNDS` 설정으로 바꿀 수 있게 한다. 테스트에서는 4로 낮춘다.
 
 ## 이유
 - bcrypt는 자료가 많아 동작을 설명하기 쉽다.
 - passlib은 마지막 릴리스가 2020년 10월의 1.7.4다([PyPI](https://pypi.org/project/passlib/)).
+- cost를 설정으로 두면 테스트에서 낮춰 테스트 시간을 줄일 수 있다.
 - passlib 1.7.4는 bcrypt 4.1 이상에서 없어진 `bcrypt.__about__`을 읽으려다 오류 로그를 남긴다([passlib issue #190](https://foss.heptapod.net/python-libs/passlib/-/issues/190)).
 
 ## 영향

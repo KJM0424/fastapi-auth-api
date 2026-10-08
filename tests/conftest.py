@@ -2,9 +2,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.db.session import get_engine, get_session_factory
+from app.main import create_app
 
 TEST_SECRET_KEY = "test-secret-key-for-pytest-0123456789"
 
@@ -15,6 +17,7 @@ def test_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ACCESS_TOKEN_EXPIRE_MINUTES", raising=False)
     monkeypatch.delenv("REFRESH_TOKEN_EXPIRE_DAYS", raising=False)
+    monkeypatch.setenv("BCRYPT_ROUNDS", "4")
     monkeypatch.setenv("SECRET_KEY", TEST_SECRET_KEY)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     _clear_caches()
@@ -28,3 +31,9 @@ def _clear_caches() -> None:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_session_factory.cache_clear()
+
+
+@pytest.fixture
+def client() -> Iterator[TestClient]:
+    with TestClient(create_app()) as test_client:
+        yield test_client

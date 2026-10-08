@@ -60,12 +60,12 @@
 
 | 위치 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|---|
-| body | email | string | 예 | 이메일 형식 |
+| body | email | string | 예 | 이메일 형식. 소문자로 바꿔 저장한다 |
 | body | password | string | 예 | 8자 이상, UTF-8 기준 72바이트 이하, 영문과 숫자 포함(ADR 0008) |
 
 ```json
 {
-  "email": "user@example.com",
+  "email": "User@Example.com",
   "password": "password123"
 }
 ```
@@ -104,7 +104,7 @@
 
 | 위치 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|---|
-| body | email | string | 예 | 가입한 이메일 |
+| body | email | string | 예 | 가입한 이메일. 대소문자를 구분하지 않는다 |
 | body | password | string | 예 | 비밀번호 |
 
 ```json

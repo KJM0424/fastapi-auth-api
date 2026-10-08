@@ -15,6 +15,22 @@ def test_settings_use_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.refresh_token_expire_days == 7
 
 
+def test_settings_use_default_bcrypt_rounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BCRYPT_ROUNDS")
+
+    assert Settings(_env_file=None).bcrypt_rounds == 12
+
+
+@pytest.mark.parametrize("value", ["3", "32"])
+def test_settings_reject_out_of_range_bcrypt_rounds(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("BCRYPT_ROUNDS", value)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
 def test_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15")
     monkeypatch.setenv("REFRESH_TOKEN_EXPIRE_DAYS", "14")
