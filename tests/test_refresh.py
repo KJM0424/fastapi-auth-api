@@ -164,7 +164,12 @@ def test_concurrent_refresh_issues_only_once(
 def test_rotation_rolls_back_delete_when_saving_new_token_fails(
     refresh_token: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """기존 토큰 삭제 후 새 토큰 저장이 DB 제약으로 실패하면 삭제도 함께 롤백된다 (ADR 0006)."""
+    """기존 토큰 삭제 후 새 토큰 저장이 DB 제약으로 실패하면 삭제도 함께 롤백된다 (ADR 0006).
+
+    삭제와 저장이 한 트랜잭션, 한 번의 commit으로 묶여 있음을 증명한다. 삭제 뒤에 commit을
+    따로 하면 이 테스트는 실패한다. 서비스의 명시적 rollback 분기가 필요한지는 증명하지 않는다.
+    flush 실패와 세션 종료 시에도 SQLAlchemy가 롤백하기 때문이다.
+    """
     with TestClient(create_app(), raise_server_exceptions=False) as client:
         other_session_token = _login(client)
         before = _stored_jtis()
