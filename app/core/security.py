@@ -24,8 +24,11 @@ class IssuedRefreshToken:
 
 
 def hash_password(password: str) -> str:
+    password_bytes = password.encode()
+    if len(password_bytes) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"비밀번호는 {MAX_PASSWORD_BYTES}바이트를 넘을 수 없습니다")
     salt = bcrypt.gensalt(rounds=get_settings().bcrypt_rounds)
-    return bcrypt.hashpw(password.encode(), salt).decode()
+    return bcrypt.hashpw(password_bytes, salt).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:

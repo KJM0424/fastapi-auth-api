@@ -28,6 +28,11 @@ def test_hash_password_does_not_store_plain_text() -> None:
     assert password_hash.startswith("$2b$04$")
 
 
+def test_hash_password_rejects_over_72_bytes() -> None:
+    with pytest.raises(ValueError):
+        hash_password("a1" * 36 + "x")
+
+
 def test_verify_password_matches_only_original_password() -> None:
     password_hash = hash_password("password123")
 
