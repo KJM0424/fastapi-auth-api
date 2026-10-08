@@ -82,6 +82,18 @@ def test_login_failure_uses_single_error(client: TestClient, email: str, passwor
     assert response.json() == INVALID_CREDENTIALS
 
 
+@pytest.mark.parametrize("email", ["user@example.com", "other@example.com"])
+def test_login_with_unencodable_password_uses_single_error(client: TestClient, email: str) -> None:
+    response = client.post(
+        LOGIN_URL,
+        content=f'{{"email": "{email}", "password": "abc12345\\ud800"}}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == INVALID_CREDENTIALS
+
+
 def test_login_with_unknown_email_runs_dummy_check(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

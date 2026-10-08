@@ -79,9 +79,14 @@ def login(db: Session, email: str, password: str) -> TokenPair:
 
 
 def _is_valid_password(password: str) -> bool:
+    try:
+        password_bytes = password.encode()
+    except UnicodeEncodeError:
+        # 짝이 없는 서로게이트 문자처럼 UTF-8로 인코딩할 수 없는 입력 (ADR 0008)
+        return False
     return (
         len(password) >= MIN_PASSWORD_LENGTH
-        and len(password.encode()) <= MAX_PASSWORD_BYTES
+        and len(password_bytes) <= MAX_PASSWORD_BYTES
         and ASCII_LETTER.search(password) is not None
         and DIGIT.search(password) is not None
     )

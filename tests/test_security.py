@@ -46,6 +46,12 @@ def test_verify_password_rejects_over_72_bytes_without_error() -> None:
     assert not verify_password("a1" * 36 + "x", password_hash)
 
 
+def test_verify_password_rejects_unencodable_input_without_error() -> None:
+    password_hash = hash_password("password123")
+
+    assert not verify_password("password123\ud800", password_hash)
+
+
 def test_verify_dummy_password_runs_without_error() -> None:
     verify_dummy_password("password123")
 

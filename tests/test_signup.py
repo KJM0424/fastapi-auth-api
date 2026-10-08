@@ -100,6 +100,17 @@ def test_signup_rejects_password_policy_violation(client: TestClient, password: 
     assert response.json() == {"code": "INVALID_PASSWORD", "message": PASSWORD_POLICY_MESSAGE}
 
 
+def test_signup_rejects_unencodable_password(client: TestClient) -> None:
+    response = client.post(
+        SIGNUP_URL,
+        content='{"email": "user@example.com", "password": "abc12345\\ud800"}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"code": "INVALID_PASSWORD", "message": PASSWORD_POLICY_MESSAGE}
+
+
 @pytest.mark.parametrize("password", ["abcdefg1", "a1" * 36, "a1가나다라마바"])
 def test_signup_accepts_password_on_boundary(client: TestClient, password: str) -> None:
     assert _signup(client, password=password).status_code == 201

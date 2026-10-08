@@ -32,7 +32,11 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    password_bytes = password.encode()
+    try:
+        password_bytes = password.encode()
+    except UnicodeEncodeError:
+        # 짝이 없는 서로게이트 문자처럼 UTF-8로 인코딩할 수 없는 입력 (ADR 0008)
+        return False
     if len(password_bytes) > MAX_PASSWORD_BYTES:
         return False
     return bcrypt.checkpw(password_bytes, password_hash.encode())
