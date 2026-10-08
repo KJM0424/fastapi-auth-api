@@ -1,5 +1,7 @@
+import logging
+
 import pytest
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -22,6 +24,10 @@ def client() -> TestClient:
     @app.post("/items")
     def create_item(item: Item) -> Item:
         return item
+
+    @app.get("/bad-request")
+    def raise_unlisted_http_exception() -> None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "unlisted detail")
 
     @app.get("/boom")
     def raise_unexpected_error() -> None:
@@ -83,3 +89,15 @@ def test_unexpected_error_hides_detail(client: TestClient) -> None:
     assert response.status_code == 500
     assert response.json() == {"code": "INTERNAL_ERROR", "message": "서버 내부 오류가 발생했습니다"}
     assert "secret detail" not in response.text
+
+
+def test_unlisted_http_exception_returns_internal_error(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR, logger="app.core.errors"):
+        response = client.get("/bad-request")
+
+    assert response.status_code == 500
+    assert response.json() == {"code": "INTERNAL_ERROR", "message": "서버 내부 오류가 발생했습니다"}
+    assert "unlisted detail" not in response.text
+    assert "400" in caplog.text
