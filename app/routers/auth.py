@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -32,3 +32,9 @@ def login(request: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Tok
 def refresh(request: RefreshTokenRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
     tokens = auth_service.refresh(db, request.refresh_token)
     return TokenResponse(access_token=tokens.access_token, refresh_token=tokens.refresh_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(request: RefreshTokenRequest, db: Annotated[Session, Depends(get_db)]) -> Response:
+    auth_service.logout(db, request.refresh_token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

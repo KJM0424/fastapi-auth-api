@@ -97,9 +97,19 @@ def refresh(db: Session, refresh_token: str) -> TokenPair:
     return tokens
 
 
-def _decode(token: str, expected_type: str) -> TokenPayload:
+def logout(db: Session, refresh_token: str) -> None:
+    # 이미 무효화되거나 만료된 토큰도 성공으로 처리하므로 만료는 검사하지 않는다 (멱등)
+    payload = _decode(refresh_token, REFRESH_TOKEN_TYPE, verify_exp=False)
+    stored = get_refresh_token_by_jti(db, payload.jti)
+    if stored is None or not hmac.compare_digest(stored.token_hash, hash_token(refresh_token)):
+        return
+    delete_refresh_token(db, stored.id)
+    db.commit()
+
+
+def _decode(token: str, expected_type: str, *, verify_exp: bool = True) -> TokenPayload:
     try:
-        return decode_token(token, expected_type)
+        return decode_token(token, expected_type, verify_exp=verify_exp)
     except TokenExpiredError as exc:
         raise _token_expired() from exc
     except InvalidTokenError as exc:
