@@ -5,8 +5,11 @@ import jwt
 import pytest
 
 from app.core.security import (
+    InvalidTokenError,
+    TokenExpiredError,
     create_access_token,
     create_refresh_token,
+    decode_token,
     hash_password,
     hash_token,
     verify_dummy_password,
@@ -94,3 +97,80 @@ def test_token_is_signed_with_secret_key() -> None:
 
     with pytest.raises(jwt.InvalidSignatureError):
         jwt.decode(token, "x" * 32, algorithms=["HS256"], options={"verify_exp": False})
+
+
+def _encode(payload: dict[str, object], key: str = TEST_SECRET_KEY) -> str:
+    return jwt.encode(payload, key, algorithm="HS256")
+
+
+def _valid_payload(**overrides: object) -> dict[str, object]:
+    now = datetime.now(UTC)
+    payload: dict[str, object] = {
+        "sub": "1",
+        "type": "refresh",
+        "jti": "a" * 32,
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
+    }
+    payload.update(overrides)
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def test_decode_token_returns_payload() -> None:
+    issued = create_refresh_token(1, datetime.now(UTC))
+
+    payload = decode_token(issued.token, "refresh")
+
+    assert payload.user_id == 1
+    assert payload.jti == issued.jti
+
+
+def test_decode_access_token_has_no_jti() -> None:
+    token = create_access_token(1, datetime.now(UTC))
+
+    assert decode_token(token, "access").jti is None
+
+
+def test_decode_token_rejects_expired_token() -> None:
+    token = create_access_token(1, datetime.now(UTC) - timedelta(minutes=31))
+
+    with pytest.raises(TokenExpiredError):
+        decode_token(token, "access")
+
+
+def test_decode_token_can_skip_expiry_check() -> None:
+    issued = create_refresh_token(1, datetime.now(UTC) - timedelta(days=8))
+
+    assert decode_token(issued.token, "refresh", verify_exp=False).user_id == 1
+
+
+def test_expired_token_with_wrong_signature_is_invalid_not_expired() -> None:
+    token = _encode(_valid_payload(exp=datetime.now(UTC) - timedelta(minutes=1)), key="x" * 32)
+
+    with pytest.raises(InvalidTokenError):
+        decode_token(token, "refresh")
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "not-a-jwt",
+        "",
+        _encode(_valid_payload(), key="x" * 32),  # 다른 키로 서명
+        _encode(_valid_payload(type="access")),  # 종류 불일치
+        _encode(_valid_payload(jti=None)),  # jti 없음
+        _encode(_valid_payload(sub=None)),  # sub 없음
+        _encode(_valid_payload(sub="abc")),  # sub가 숫자가 아님
+        _encode(_valid_payload(exp=None)),  # exp 없음
+    ],
+)
+def test_decode_token_rejects_invalid_token(token: str) -> None:
+    with pytest.raises(InvalidTokenError):
+        decode_token(token, "refresh")
+
+
+def test_decode_token_rejects_none_algorithm() -> None:
+    token = jwt.encode(_valid_payload(), None, algorithm="none")
+
+    with pytest.raises(InvalidTokenError):
+        decode_token(token, "refresh")

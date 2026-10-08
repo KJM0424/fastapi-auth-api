@@ -16,6 +16,20 @@ ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 
 
+class InvalidTokenError(Exception):
+    pass
+
+
+class TokenExpiredError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class TokenPayload:
+    user_id: int
+    jti: str | None
+
+
 @dataclass(frozen=True)
 class IssuedRefreshToken:
     token: str
@@ -75,6 +89,29 @@ def create_refresh_token(user_id: int, now: datetime) -> IssuedRefreshToken:
         "exp": expires_at,
     }
     return IssuedRefreshToken(token=_encode(payload), jti=jti, expires_at=expires_at)
+
+
+def decode_token(token: str, expected_type: str, *, verify_exp: bool = True) -> TokenPayload:
+    """서명을 먼저 검증하므로 TokenExpiredError는 서명이 유효한 토큰에서만 난다."""
+    required_claims = ["sub", "type", "iat", "exp"]
+    if expected_type == REFRESH_TOKEN_TYPE:
+        required_claims.append("jti")
+    try:
+        payload = jwt.decode(
+            token,
+            get_settings().secret_key.get_secret_value(),
+            algorithms=[JWT_ALGORITHM],
+            options={"require": required_claims, "verify_exp": verify_exp},
+        )
+    except jwt.ExpiredSignatureError as exc:
+        raise TokenExpiredError from exc
+    except jwt.InvalidTokenError as exc:
+        raise InvalidTokenError from exc
+
+    subject = payload["sub"]
+    if payload["type"] != expected_type or not (isinstance(subject, str) and subject.isdigit()):
+        raise InvalidTokenError
+    return TokenPayload(user_id=int(subject), jti=payload.get("jti"))
 
 
 def hash_token(token: str) -> str:
