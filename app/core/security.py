@@ -47,6 +47,11 @@ def verify_dummy_password(password: str) -> None:
     verify_password(password, _dummy_password_hash(get_settings().bcrypt_rounds))
 
 
+def prepare_dummy_password_hash() -> None:
+    """첫 로그인 요청에서 더미 해시를 만드느라 응답이 느려지지 않게 앱 시작 시 미리 만든다."""
+    _dummy_password_hash(get_settings().bcrypt_rounds)
+
+
 @lru_cache
 def _dummy_password_hash(rounds: int) -> str:
     salt = bcrypt.gensalt(rounds=rounds)
