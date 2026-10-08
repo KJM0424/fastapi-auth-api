@@ -7,9 +7,8 @@
 PRD에 따라 비밀번호를 평문으로 저장하지 않는다. 해싱 알고리즘과 라이브러리를 정해야 한다.
 
 ## 선택지
-- bcrypt (bcrypt 라이브러리 직접 사용)
-- bcrypt (passlib 경유)
-- Argon2 (argon2-cffi)
+- bcrypt
+- Argon2id
 
 ## 결정
 bcrypt 라이브러리를 직접 쓴다. passlib은 쓰지 않는다.

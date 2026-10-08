@@ -7,9 +7,8 @@
 회원 정보와 리프레시 토큰을 저장할 DB가 필요하다. 하루 안에 완성하는 프로젝트라 설치와 설정 부담이 적어야 한다.
 
 ## 선택지
-- SQLite + SQLAlchemy
-- PostgreSQL + SQLAlchemy
-- MySQL + SQLAlchemy
+- SQLite
+- PostgreSQL
 
 ## 결정
 SQLite와 SQLAlchemy를 쓴다.
