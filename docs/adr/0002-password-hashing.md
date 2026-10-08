@@ -19,5 +19,7 @@ bcrypt 라이브러리를 직접 쓴다. passlib은 쓰지 않는다.
 - passlib 1.7.4는 bcrypt 4.1 이상에서 없어진 `bcrypt.__about__`을 읽으려다 오류 로그를 남긴다([passlib issue #190](https://foss.heptapod.net/python-libs/passlib/-/issues/190)).
 
 ## 영향
-- bcrypt 5.0.0부터 72바이트를 넘는 비밀번호를 `hashpw`에 넘기면 `ValueError`가 발생한다([bcrypt CHANGELOG](https://github.com/pyca/bcrypt/blob/main/CHANGELOG.rst)). 입력 검증 단계에서 길이를 제한하거나 이 오류를 처리해야 한다.
+- bcrypt 5.0.0부터 72바이트를 넘는 비밀번호를 `hashpw`에 넘기면 `ValueError`가 발생한다([bcrypt CHANGELOG](https://github.com/pyca/bcrypt/blob/main/CHANGELOG.rst)). `checkpw`도 내부에서 `hashpw`를 호출하므로 같은 오류가 발생한다([bcrypt 5.0.0 소스](https://github.com/pyca/bcrypt/blob/5.0.0/src/_bcrypt/src/lib.rs#L137-L143)).
+- ADR 0008에 따라 가입 단계에서 72바이트를 넘는 비밀번호를 거부한다.
+- 로그인 단계에서는 72바이트를 넘는 입력을 `checkpw`에 넘기지 않고 일반 로그인 실패로 처리한다.
 - 해싱과 검증 함수를 직접 감싸서 써야 한다.
