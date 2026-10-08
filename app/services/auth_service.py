@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.security import (
+    ACCESS_TOKEN_TYPE,
     MAX_PASSWORD_BYTES,
     REFRESH_TOKEN_TYPE,
     InvalidTokenError,
@@ -28,7 +29,7 @@ from app.repositories.refresh_token_repository import (
     delete_refresh_token,
     get_refresh_token_by_jti,
 )
-from app.repositories.user_repository import add_user, get_user_by_email
+from app.repositories.user_repository import add_user, get_user_by_email, get_user_by_id
 
 MIN_PASSWORD_LENGTH = 8
 ASCII_LETTER = re.compile(r"[A-Za-z]")
@@ -80,15 +81,15 @@ def refresh(db: Session, refresh_token: str) -> TokenPair:
     payload = _decode(refresh_token, REFRESH_TOKEN_TYPE)
     stored = get_refresh_token_by_jti(db, payload.jti)
     if stored is None or stored.user_id != payload.user_id:
-        raise _invalid_token()
+        raise invalid_token_error()
     if not hmac.compare_digest(stored.token_hash, hash_token(refresh_token)):
-        raise _invalid_token()
+        raise invalid_token_error()
 
     # 기존 토큰 삭제와 새 토큰 저장을 한 트랜잭션으로 묶는다 (ADR 0006)
     try:
         if delete_refresh_token(db, stored.id) != 1:
             # 같은 토큰으로 들어온 다른 요청이 먼저 교체한 경우
-            raise _invalid_token()
+            raise invalid_token_error()
         tokens = _issue_tokens(db, payload.user_id)
         db.commit()
     except Exception:
@@ -107,13 +108,21 @@ def logout(db: Session, refresh_token: str) -> None:
     db.commit()
 
 
+def get_current_user(db: Session, access_token: str) -> User:
+    payload = _decode(access_token, ACCESS_TOKEN_TYPE)
+    user = get_user_by_id(db, payload.user_id)
+    if user is None:
+        raise invalid_token_error()
+    return user
+
+
 def _decode(token: str, expected_type: str, *, verify_exp: bool = True) -> TokenPayload:
     try:
         return decode_token(token, expected_type, verify_exp=verify_exp)
     except TokenExpiredError as exc:
         raise _token_expired() from exc
     except InvalidTokenError as exc:
-        raise _invalid_token() from exc
+        raise invalid_token_error() from exc
 
 
 def _issue_tokens(db: Session, user_id: int) -> TokenPair:
@@ -164,8 +173,12 @@ def _invalid_credentials() -> AppError:
     )
 
 
-def _invalid_token() -> AppError:
+def invalid_token_error() -> AppError:
     return AppError(status.HTTP_401_UNAUTHORIZED, "INVALID_TOKEN", "유효하지 않은 토큰입니다")
+
+
+def unauthorized_error() -> AppError:
+    return AppError(status.HTTP_401_UNAUTHORIZED, "UNAUTHORIZED", "인증이 필요합니다")
 
 
 def _token_expired() -> AppError:
