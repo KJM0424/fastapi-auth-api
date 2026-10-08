@@ -61,19 +61,25 @@ def login(db: Session, email: str, password: str) -> TokenPair:
     if not verify_password(password, user.password_hash):
         raise _invalid_credentials()
 
+    tokens = _issue_tokens(db, user.id)
+    db.commit()
+    return tokens
+
+
+def _issue_tokens(db: Session, user_id: int) -> TokenPair:
+    """새 리프레시 토큰을 세션에 추가만 한다. commit은 호출하는 쪽에서 한다."""
     now = _now()
-    refresh_token = create_refresh_token(user.id, now)
+    refresh_token = create_refresh_token(user_id, now)
     add_refresh_token(
         db,
-        user_id=user.id,
+        user_id=user_id,
         jti=refresh_token.jti,
         token_hash=hash_token(refresh_token.token),
         expires_at=refresh_token.expires_at,
         created_at=now,
     )
-    db.commit()
     return TokenPair(
-        access_token=create_access_token(user.id, now),
+        access_token=create_access_token(user_id, now),
         refresh_token=refresh_token.token,
     )
 
