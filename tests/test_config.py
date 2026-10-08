@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
+from tests.conftest import TEST_SECRET_KEY
 
 
 def test_settings_use_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,7 +21,7 @@ def test_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) ->
 
     settings = Settings(_env_file=None)
 
-    assert settings.secret_key == "test-secret-key"
+    assert settings.secret_key.get_secret_value() == TEST_SECRET_KEY
     assert settings.access_token_expire_minutes == 15
     assert settings.refresh_token_expire_days == 14
 
@@ -45,3 +46,27 @@ def test_settings_use_default_for_empty_optional_value(monkeypatch: pytest.Monke
     settings = Settings(_env_file=None)
 
     assert settings.access_token_expire_minutes == 30
+
+
+def test_settings_reject_short_secret_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SECRET_KEY", "a" * 31)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_settings_hide_secret_key_in_repr() -> None:
+    settings = Settings(_env_file=None)
+
+    assert TEST_SECRET_KEY not in repr(settings)
+
+
+@pytest.mark.parametrize("name", ["ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_DAYS"])
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_settings_reject_non_positive_expiry(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

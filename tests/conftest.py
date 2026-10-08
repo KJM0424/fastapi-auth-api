@@ -6,10 +6,12 @@ import pytest
 from app.core.config import get_settings
 from app.db.session import get_engine, get_session_factory
 
+TEST_SECRET_KEY = "test-secret-key-for-pytest-0123456789"
+
 
 @pytest.fixture(autouse=True)
 def test_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
-    monkeypatch.setenv("SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("SECRET_KEY", TEST_SECRET_KEY)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     _clear_caches()
     yield
