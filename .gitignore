@@ -18,3 +18,8 @@ htmlcov/
 
 # 환경 변수
 .env
+.env.*
+!.env.example
+
+# 로컬 DB
+*.db
