@@ -2,9 +2,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.db.session import get_engine, get_session_factory
+from app.main import create_app
 
 TEST_SECRET_KEY = "test-secret-key-for-pytest-0123456789"
 
@@ -29,3 +31,9 @@ def _clear_caches() -> None:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_session_factory.cache_clear()
+
+
+@pytest.fixture
+def client() -> Iterator[TestClient]:
+    with TestClient(create_app()) as test_client:
+        yield test_client
