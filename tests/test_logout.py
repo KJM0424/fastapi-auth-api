@@ -124,3 +124,10 @@ def test_logout_rejects_missing_field(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(("length", "status_code"), [(2048, 401), (2049, 422)])
+def test_refresh_token_length_limit(client: TestClient, length: int, status_code: int) -> None:
+    response = client.post(LOGOUT_URL, json={"refresh_token": "a" * length})
+
+    assert response.status_code == status_code

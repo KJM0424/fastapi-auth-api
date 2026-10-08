@@ -204,3 +204,10 @@ def test_rotation_rolls_back_delete_when_saving_new_token_fails(
 
         monkeypatch.setattr(auth_service, "create_refresh_token", original_create)
         assert _refresh(client, refresh_token).status_code == 200  # 기존 토큰을 계속 쓸 수 있다
+
+
+@pytest.mark.parametrize(("length", "status_code"), [(2048, 401), (2049, 422)])
+def test_refresh_token_length_limit(client: TestClient, length: int, status_code: int) -> None:
+    response = client.post(REFRESH_URL, json={"refresh_token": "a" * length})
+
+    assert response.status_code == status_code

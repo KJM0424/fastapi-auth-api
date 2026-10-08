@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+# 발급하는 토큰보다 충분히 길게 두고, 비정상적으로 긴 입력은 검증 단계에서 막는다
+MAX_REFRESH_TOKEN_LENGTH = 2048
 
 
 class SignupRequest(BaseModel):
@@ -16,7 +19,7 @@ class LoginRequest(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(max_length=MAX_REFRESH_TOKEN_LENGTH)
 
 
 class UserResponse(BaseModel):
