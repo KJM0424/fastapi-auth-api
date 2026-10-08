@@ -149,7 +149,7 @@
 
 | 위치 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|---|
-| body | refresh_token | string | 예 | 로그인 또는 이전 재발급에서 받은 리프레시 토큰 |
+| body | refresh_token | string | 예 | 로그인 또는 이전 재발급에서 받은 리프레시 토큰. 최대 2048자 |
 
 ```json
 {
@@ -178,8 +178,8 @@
 
 | 상태 코드 | 에러 코드 | 발생 조건 |
 |---|---|---|
-| 422 | VALIDATION_ERROR | `refresh_token` 누락, 타입 오류 |
-| 401 | INVALID_TOKEN | 서명·형식 오류, 리프레시 토큰이 아님, 이미 무효화된 토큰 |
+| 422 | VALIDATION_ERROR | `refresh_token` 누락, 타입 오류, 2048자 초과 |
+| 401 | INVALID_TOKEN | 서명·형식 오류, 리프레시 토큰이 아님, 이미 무효화된 토큰, 저장된 해시와 다른 토큰, 같은 토큰으로 동시에 요청해 다른 요청이 먼저 교체함 |
 | 401 | TOKEN_EXPIRED | 만료된 리프레시 토큰 |
 
 ### 로그아웃
@@ -191,7 +191,7 @@
 
 | 위치 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|---|
-| body | refresh_token | string | 예 | 무효화할 리프레시 토큰 |
+| body | refresh_token | string | 예 | 무효화할 리프레시 토큰. 최대 2048자 |
 
 ```json
 {
@@ -215,12 +215,13 @@
 
 | 상태 코드 | 에러 코드 | 발생 조건 |
 |---|---|---|
-| 422 | VALIDATION_ERROR | `refresh_token` 누락, 타입 오류 |
+| 422 | VALIDATION_ERROR | `refresh_token` 누락, 타입 오류, 2048자 초과 |
 | 401 | INVALID_TOKEN | 서명·형식 오류, 리프레시 토큰이 아님 |
 
 로그아웃은 멱등하게 처리한다. 서명이 유효하면 아래 경우도 204를 반환한다.
 - 이미 무효화된 리프레시 토큰
 - 만료된 리프레시 토큰. DB에 기록이 남아 있으면 삭제한다.
+- `jti`는 DB에 있지만 저장된 해시와 다른 토큰. 이 경우 DB 행은 삭제하지 않는다.
 
 ### 내 정보 조회
 - Method / URL: `GET /api/v1/users/me`
@@ -254,8 +255,8 @@
 
 | 상태 코드 | 에러 코드 | 발생 조건 |
 |---|---|---|
-| 401 | UNAUTHORIZED | Authorization 헤더 없음 |
-| 401 | INVALID_TOKEN | Bearer 형식이 아닌 헤더, 서명·형식 오류, 액세스 토큰이 아님 |
+| 401 | UNAUTHORIZED | Authorization 헤더 없음 또는 값이 비어 있음 |
+| 401 | INVALID_TOKEN | Bearer 형식이 아닌 헤더, 서명·형식 오류, 액세스 토큰이 아님, 토큰의 사용자가 없음 |
 | 401 | TOKEN_EXPIRED | 만료된 액세스 토큰 |
 
 ## 에러 코드 목록

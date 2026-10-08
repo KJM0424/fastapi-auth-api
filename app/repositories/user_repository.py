@@ -14,3 +14,7 @@ def add_user(db: Session, email: str, password_hash: str, created_at: datetime) 
     user = User(email=email, password_hash=password_hash, created_at=created_at)
     db.add(user)
     return user
+
+
+def get_user_by_id(db: Session, user_id: int) -> User | None:
+    return db.get(User, user_id)
