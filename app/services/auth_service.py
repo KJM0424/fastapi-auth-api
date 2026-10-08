@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import status
@@ -6,13 +7,28 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.security import MAX_PASSWORD_BYTES, hash_password
+from app.core.security import (
+    MAX_PASSWORD_BYTES,
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_token,
+    verify_dummy_password,
+    verify_password,
+)
 from app.models import User
+from app.repositories.refresh_token_repository import add_refresh_token
 from app.repositories.user_repository import add_user, get_user_by_email
 
 MIN_PASSWORD_LENGTH = 8
 ASCII_LETTER = re.compile(r"[A-Za-z]")
 DIGIT = re.compile(r"[0-9]")
+
+
+@dataclass(frozen=True)
+class TokenPair:
+    access_token: str
+    refresh_token: str
 
 
 def signup(db: Session, email: str, password: str) -> User:
@@ -37,6 +53,31 @@ def signup(db: Session, email: str, password: str) -> User:
     return user
 
 
+def login(db: Session, email: str, password: str) -> TokenPair:
+    user = get_user_by_email(db, email.lower())
+    if user is None:
+        verify_dummy_password(password)
+        raise _invalid_credentials()
+    if not verify_password(password, user.password_hash):
+        raise _invalid_credentials()
+
+    now = _now()
+    refresh_token = create_refresh_token(user.id, now)
+    add_refresh_token(
+        db,
+        user_id=user.id,
+        jti=refresh_token.jti,
+        token_hash=hash_token(refresh_token.token),
+        expires_at=refresh_token.expires_at,
+        created_at=now,
+    )
+    db.commit()
+    return TokenPair(
+        access_token=create_access_token(user.id, now),
+        refresh_token=refresh_token.token,
+    )
+
+
 def _is_valid_password(password: str) -> bool:
     return (
         len(password) >= MIN_PASSWORD_LENGTH
@@ -52,3 +93,11 @@ def _now() -> datetime:
 
 def _email_already_exists() -> AppError:
     return AppError(status.HTTP_409_CONFLICT, "EMAIL_ALREADY_EXISTS", "이미 가입된 이메일입니다")
+
+
+def _invalid_credentials() -> AppError:
+    return AppError(
+        status.HTTP_401_UNAUTHORIZED,
+        "INVALID_CREDENTIALS",
+        "이메일 또는 비밀번호가 올바르지 않습니다",
+    )
